@@ -36,11 +36,6 @@ export function SearchBar({
     onSearch(value.trim());
   };
 
-  const handleClear = () => {
-    setValue('');
-    onSearch('');
-  };
-
   return (
     <form role="search" onSubmit={handleSubmit} className={cn('flex w-full items-center gap-2', className)}>
       <div className="relative flex-1">
@@ -66,18 +61,6 @@ export function SearchBar({
             size === 'large' && 'h-14 rounded-2xl text-base shadow-md',
           )}
         />
-        {value && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Clear search"
-            className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full"
-            onClick={handleClear}
-          >
-            ×
-          </Button>
-        )}
       </div>
       <Button type="submit" size={size === 'large' ? 'lg' : 'md'}>
         Search

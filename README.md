@@ -12,13 +12,31 @@ docker compose up --build
 
 No API keys, database or external accounts are required.
 
+### Reviewer setup
+
+| You need | Notes |
+| --- | --- |
+| Docker with Compose v2 | The only requirement for `docker compose up --build`. A cold build takes a few minutes. |
+| Free ports `3000` and `4000` | Change them with `FRONTEND_PORT` / `BACKEND_PORT` (see [Configuration](#configuration)). If you change `BACKEND_PORT`, set `VITE_API_BASE_URL` to match. |
+| Outbound internet access | The API fetches products from `https://fakestoreapi.com`. Without it, catalogue pages show a retryable error. |
+| Nothing else | No API keys, database or accounts. Enquiries are printed to the backend container logs (`docker compose logs -f backend`). |
+
+Without Docker: Node.js ≥ 20.19, then `npm install && npm run dev` (API on 4000, Vite on 3000).
+
+### Project documents
+
+- [`DECISIONS.md`](DECISIONS.md) — assumptions, what was dropped or simplified, how the design grows, and next steps.
+- [`AI_USAGE.md`](AI_USAGE.md) — tools and models used, key prompts, and where the AI was wrong.
+- [`CLAUDE.md`](CLAUDE.md) — agent instructions for working in this repo.
+- [`docs/SPEC.md`](docs/SPEC.md) — the original brief the implementation was built from.
+
 ---
 
 ## What it does
 
 - **Home** — hero search, category shortcuts, featured products.
 - **Category** — `/categories/:slug` with a category switcher.
-- **Search** — `/search?q=…`, instant (debounced) search plus submit, shareable URLs; an empty query browses the full catalogue.
+- **Search** — `/search?q=…`, run on submit, with shareable URLs. Results are grouped into **Title matches** and **Related items**; an empty query browses the full catalogue. See [Search](#search).
 - **Product detail** — `/products/:id` with normalized price, rating, stock signal, description and breadcrumbs.
 - **Enquiry modal** — Name / Email / Message / Product ID, validated on the client with the same Zod schema the API uses, then emailed through the `IEmailService` port (console adapter by default).
 - Unknown routes render a styled 404; upstream failures render retryable error states.
@@ -119,6 +137,7 @@ Base URL `http://localhost:4000`. All responses are JSON.
 | `GET` | `/api/products?category=&search=&limit=` | List products. `limit` is an integer 1–100. Metadata reports the total before the limit. |
 | `GET` | `/api/products/:id` | Single product. |
 | `GET` | `/api/categories` | Categories with slugs, display names and product counts. |
+| `GET` | `/api/search?search=` | Whole-word title search. Created but not used by the UI yet; see [Search](#search). |
 | `POST` | `/api/enquiries` | Submit an enquiry. |
 | `GET` | `/api/health` | Liveness probe. |
 
@@ -213,8 +232,14 @@ npm run test       # backend Jest then frontend Jest
 **Frontend (Jest + jsdom + React Testing Library):**
 
 - UI primitives: Button, Input, Card, Dialog (including close wiring).
-- `ProductCard`, `SearchBar` (debounce + submit), `EnquiryModal` (client validation, success, API failure).
+- `ProductCard`, `SearchBar` (submit, clear), `SearchPage`, `EnquiryModal` (client validation, success, API failure).
 - Hooks: `useProducts`, `useProductDetail`, `useCategories` (TanStack Query) and `useSubmitEnquiry` (TanStack Mutation), plus a test that cached categories are reused across mounts.
+
+## Search
+
+Search works end to end in the UI. On the Search page, `SearchPage` calls `GET /api/products?search=`, which matches on title, description and category. It then splits the results on the client: a product is a **Title match** when its title contains the query text (case-insensitive), and everything else is a **Related item**.
+
+`GET /api/search` and `IProductRepository.searchProductsByTitle` (whole-word, title-only matching) exist but are **not used by the frontend yet**, and no backend test covers them. Either wire the frontend to them or remove them; every new data source has to implement each port method, so the port should not grow without a caller.
 
 ## Extending it
 
@@ -230,4 +255,23 @@ Other likely next steps: a real inventory adapter to replace the review-count st
 - The backend catalogue is read-only and caches nothing: each uncached list request fetches FakeStore once, so a cache decorator can wrap `IProductRepository` without touching the services. The React client keeps query results for 30 seconds (TanStack Query).
 - The console email adapter logs notifications instead of sending them, so no credentials are needed to run the project.
 - The enquiry form is an enquiry only — there is no cart, checkout or payment flow, and no authentication.
-- Search is token-based (`"men clothing"` matches `"Men's Clothing"`) and runs server-side, with debounced requests from the search page.
+- Search is token-based (`"men clothing"` matches `"Men's Clothing"`) and runs server-side when the query is submitted. Nothing debounces typing.
+
+## Known limitations
+
+- **`SearchPage` fetching.** The search request uses `useState` + `useEffect` rather than a TanStack Query hook, and runs alongside `useProducts({ search })`, so each query makes two requests. Folding it into one query hook (with `select` doing the title/related split) would remove the duplicate request.
+- **Node 20 images.** The Dockerfiles use `node:20-alpine`, which reached end of life in April 2026. Move to a current LTS when convenient.
+- **CORS.** `CORS_ORIGIN` defaults to `*` in code when unset (Compose sets `http://localhost:3000`).
+- **No rate limiting** on `POST /api/enquiries`, and enquiries are not persisted. A failed notification returns an error to the customer and the enquiry is lost.
+- **No backend caching.** Each search fetches the full FakeStore product list.
+- **Stock status** is a heuristic derived from review count, not real inventory.
+- **Backend config** is parsed by hand in `config.ts` rather than validated with a schema.
+
+## Verifying a build
+
+```bash
+npm ci && npm run typecheck && npm run test && npm run build
+docker compose up --build
+```
+
+Then check: browse → category → product → enquiry (the enquiry appears in the backend container logs); submit a search and confirm both result groups; point `FAKESTORE_API_URL` somewhere invalid and confirm catalogue pages show a retryable error rather than a blank screen.
