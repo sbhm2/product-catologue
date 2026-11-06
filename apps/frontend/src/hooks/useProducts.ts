@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Product, ProductListMeta, ProductQuery } from '@catalogue/contracts';
 import { listProducts } from '@/api/catalogue';
-import { isAbortError, toError } from './errors';
+import { queryKeys } from '@/lib/queryKeys';
+import { toError } from './errors';
 
 export interface UseProductsResult {
   data: Product[];
@@ -13,49 +15,29 @@ export interface UseProductsResult {
 }
 
 /**
- * Fetches a product list for the given query. Presentation components stay
- * headless: they receive `data` and states from this hook.
+ * Fetches a product list for the given query. TanStack Query owns caching,
+ * request deduplication, cancellation, and retries; components keep receiving
+ * the same presentation-friendly result.
  */
 export function useProducts(params: ProductQuery = {}): UseProductsResult {
   const { category, search, limit } = params;
-  const [data, setData] = useState<Product[]>([]);
-  const [meta, setMeta] = useState<ProductListMeta | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [requestKey, setRequestKey] = useState(0);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
+  const query = useQuery({
+    queryKey: queryKeys.products.list({ category, search, limit }),
+    queryFn: ({ signal }) => listProducts({ category, search, limit }, signal),
+  });
 
-    setIsLoading(true);
-    setError(null);
-
-    listProducts({ category, search, limit }, controller.signal)
-      .then((result) => {
-        if (!active) return;
-        setData(result.data);
-        setMeta(result.meta);
-      })
-      .catch((cause: unknown) => {
-        if (!active || isAbortError(cause)) return;
-        setData([]);
-        setMeta(null);
-        setError(toError(cause));
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [category, search, limit, requestKey]);
-
+  const { refetch: refetchQuery } = query;
   const refetch = useCallback(() => {
-    setRequestKey((key) => key + 1);
-  }, []);
+    void refetchQuery();
+  }, [refetchQuery]);
 
-  return { data, meta, isLoading, isError: error !== null, error, refetch };
+  return {
+    data: query.data?.data ?? [],
+    meta: query.data?.meta ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error ? toError(query.error) : null,
+    refetch,
+  };
 }

@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Category } from '@catalogue/contracts';
 import { listCategories } from '@/api/catalogue';
-import { isAbortError, toError } from './errors';
+import { queryKeys } from '@/lib/queryKeys';
+import { toError } from './errors';
 
 export interface UseCategoriesResult {
   data: Category[];
@@ -12,41 +14,21 @@ export interface UseCategoriesResult {
 }
 
 export function useCategories(): UseCategoriesResult {
-  const [data, setData] = useState<Category[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [requestKey, setRequestKey] = useState(0);
+  const query = useQuery({
+    queryKey: queryKeys.categories.all,
+    queryFn: ({ signal }) => listCategories(signal),
+  });
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-
-    setIsLoading(true);
-    setError(null);
-
-    listCategories(controller.signal)
-      .then((categories) => {
-        if (!active) return;
-        setData(categories);
-      })
-      .catch((cause: unknown) => {
-        if (!active || isAbortError(cause)) return;
-        setData([]);
-        setError(toError(cause));
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [requestKey]);
-
+  const { refetch: refetchQuery } = query;
   const refetch = useCallback(() => {
-    setRequestKey((key) => key + 1);
-  }, []);
+    void refetchQuery();
+  }, [refetchQuery]);
 
-  return { data, isLoading, isError: error !== null, error, refetch };
+  return {
+    data: query.data ?? [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error ? toError(query.error) : null,
+    refetch,
+  };
 }

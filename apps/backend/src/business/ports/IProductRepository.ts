@@ -12,4 +12,5 @@ export interface IProductRepository {
   getProductById(id: string): Promise<Product | null>;
   getCategories(): Promise<Category[]>;
   searchProducts(query: string): Promise<Product[]>;
+  searchProductsByTitle(query: string): Promise<Product[]>;
 }

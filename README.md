@@ -1,6 +1,6 @@
 # Northwind Supply — Product Catalogue
 
-A full-stack product catalogue built as an npm-workspaces monorepo: a React 19 + Vite + Tailwind CSS v4 storefront, an Express 5 API, and a shared TypeScript contract package. Product data is sourced from [FakeStore](https://fakestoreapi.com/products) and **normalised by the backend** — the browser never calls FakeStore directly.
+A full-stack product catalogue built as an npm-workspaces monorepo: a React 19 + TanStack Query + Vite + Tailwind CSS v4 storefront, an Express 5 API, and a shared TypeScript contract package. Product data is sourced from [FakeStore](https://fakestoreapi.com/products) and **normalised by the backend** — the browser never calls FakeStore directly.
 
 ```
 docker compose up --build
@@ -51,7 +51,7 @@ product-catalogue/
 └── apps/frontend/
     └── src/
         ├── api/                 # typed fetch client + endpoint functions
-        ├── hooks/               # useProducts, useProductDetail, useCategories, useSubmitEnquiry
+        ├── hooks/               # TanStack Query hooks: useProducts, useProductDetail, useCategories, useSubmitEnquiry
         ├── features/            # ProductCard, SearchBar, CategoryFilter, EnquiryModal
         ├── components/ui/       # Button, Input, Textarea, Card, Dialog, Select, Badge, Skeleton
         ├── pages/               # Home, Category, Search, Product, NotFound
@@ -92,7 +92,7 @@ Request flow for `GET /api/products?category=jewelery&limit=4`:
 
 ### Frontend
 
-- Data fetching is isolated in hooks; components receive data and state, not `fetch` calls. Each hook aborts in-flight requests on unmount/parameter change and exposes `isLoading` / `isError` / `refetch` (or a mutation state machine for enquiries).
+- Data fetching is isolated in TanStack Query v5 hooks; components receive data and state, not `fetch` calls. The shared client (`src/lib/queryClient.ts`) centralises caching, deduplication and retry policy, while `src/lib/queryKeys.ts` keeps cache keys consistent. Hooks expose `isLoading` / `isError` / `refetch` (or mutation state for enquiries); TanStack aborts in-flight requests on unmount or parameter change.
 - The API base URL comes from `VITE_API_BASE_URL` (`src/config/env.ts`); there is no FakeStore URL anywhere in the client.
 - All routes are client-side (`BrowserRouter`), with Nginx serving `index.html` as the fallback for deep links.
 
@@ -214,7 +214,7 @@ npm run test       # backend Jest then frontend Jest
 
 - UI primitives: Button, Input, Card, Dialog (including close wiring).
 - `ProductCard`, `SearchBar` (debounce + submit), `EnquiryModal` (client validation, success, API failure).
-- Hooks: `useProducts`, `useProductDetail`, `useCategories`, `useSubmitEnquiry`.
+- Hooks: `useProducts`, `useProductDetail`, `useCategories` (TanStack Query) and `useSubmitEnquiry` (TanStack Mutation), plus a test that cached categories are reused across mounts.
 
 ## Extending it
 
@@ -227,7 +227,7 @@ Other likely next steps: a real inventory adapter to replace the review-count st
 ## Assumptions and trade-offs
 
 - FakeStore has no inventory or currency data; `stock.status` is derived and `USD` is fixed. Both are explicit in the domain schema so a real source can supply them later.
-- The catalogue is read-only and cached nowhere: each list request fetches FakeStore once. That keeps the demo honest and simple; a cache decorator can wrap `IProductRepository` without touching the services.
+- The backend catalogue is read-only and caches nothing: each uncached list request fetches FakeStore once, so a cache decorator can wrap `IProductRepository` without touching the services. The React client keeps query results for 30 seconds (TanStack Query).
 - The console email adapter logs notifications instead of sending them, so no credentials are needed to run the project.
 - The enquiry form is an enquiry only — there is no cart, checkout or payment flow, and no authentication.
 - Search is token-based (`"men clothing"` matches `"Men's Clothing"`) and runs server-side, with debounced requests from the search page.

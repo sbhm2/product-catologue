@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Product } from '@catalogue/contracts';
 import { getProduct } from '@/api/catalogue';
 import { ApiError } from '@/api/client';
-import { isAbortError, toError } from './errors';
+import { queryKeys } from '@/lib/queryKeys';
+import { toError } from './errors';
 
 export interface UseProductDetailResult {
   data: Product | null;
@@ -13,53 +15,42 @@ export interface UseProductDetailResult {
   refetch: () => void;
 }
 
+const MISSING_ID_ERROR = new Error('A product id is required.');
+
 export function useProductDetail(id: string | undefined): UseProductDetailResult {
-  const [data, setData] = useState<Product | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [requestKey, setRequestKey] = useState(0);
+  const query = useQuery({
+    queryKey: queryKeys.products.detail(id ?? ''),
+    queryFn: ({ signal }) => {
+      if (!id) throw MISSING_ID_ERROR;
+      return getProduct(id, signal);
+    },
+    enabled: Boolean(id),
+  });
 
-  useEffect(() => {
-    if (!id) {
-      setData(null);
-      setError(new Error('A product id is required.'));
-      setNotFound(false);
-      setIsLoading(false);
-      return;
-    }
-
-    const controller = new AbortController();
-    let active = true;
-
-    setIsLoading(true);
-    setError(null);
-    setNotFound(false);
-
-    getProduct(id, controller.signal)
-      .then((product) => {
-        if (!active) return;
-        setData(product);
-      })
-      .catch((cause: unknown) => {
-        if (!active || isAbortError(cause)) return;
-        setData(null);
-        setNotFound(cause instanceof ApiError && cause.code === 'PRODUCT_NOT_FOUND');
-        setError(toError(cause));
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [id, requestKey]);
-
+  const { refetch: refetchQuery } = query;
   const refetch = useCallback(() => {
-    setRequestKey((key) => key + 1);
-  }, []);
+    void refetchQuery();
+  }, [refetchQuery]);
 
-  return { data, isLoading, isError: error !== null, notFound, error, refetch };
+  if (!id) {
+    return {
+      data: null,
+      isLoading: false,
+      isError: true,
+      notFound: false,
+      error: MISSING_ID_ERROR,
+      refetch,
+    };
+  }
+
+  const error = query.error ? toError(query.error) : null;
+
+  return {
+    data: query.data ?? null,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    notFound: error instanceof ApiError && error.code === 'PRODUCT_NOT_FOUND',
+    error,
+    refetch,
+  };
 }

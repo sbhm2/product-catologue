@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import type { EnquiryInput, EnquiryReceipt } from '@catalogue/contracts';
 import { submitEnquiry } from '@/api/enquiries';
 import { toError } from './errors';
@@ -13,50 +14,33 @@ export interface UseSubmitEnquiryResult {
 }
 
 export function useSubmitEnquiry(): UseSubmitEnquiryResult {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [receipt, setReceipt] = useState<EnquiryReceipt | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const mounted = useRef(true);
+  const mutation = useMutation({
+    mutationFn: (input: EnquiryInput) => submitEnquiry(input),
+  });
 
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  const { mutateAsync, reset: resetMutation } = mutation;
 
-  const submit = useCallback(async (input: EnquiryInput): Promise<EnquiryReceipt> => {
-    setIsSubmitting(true);
-    setError(null);
-    setIsSuccess(false);
-
-    try {
-      const nextReceipt = await submitEnquiry(input);
-      if (mounted.current) {
-        setReceipt(nextReceipt);
-        setIsSuccess(true);
+  const submit = useCallback(
+    async (input: EnquiryInput): Promise<EnquiryReceipt> => {
+      try {
+        return await mutateAsync(input);
+      } catch (cause) {
+        throw toError(cause);
       }
-      return nextReceipt;
-    } catch (cause) {
-      const normalized = toError(cause);
-      if (mounted.current) {
-        setError(normalized);
-      }
-      throw normalized;
-    } finally {
-      if (mounted.current) {
-        setIsSubmitting(false);
-      }
-    }
-  }, []);
+    },
+    [mutateAsync],
+  );
 
   const reset = useCallback(() => {
-    setIsSubmitting(false);
-    setIsSuccess(false);
-    setReceipt(null);
-    setError(null);
-  }, []);
+    resetMutation();
+  }, [resetMutation]);
 
-  return { submit, isSubmitting, isSuccess, receipt, error, reset };
+  return {
+    submit,
+    isSubmitting: mutation.isPending,
+    isSuccess: mutation.isSuccess,
+    receipt: mutation.data ?? null,
+    error: mutation.error ? toError(mutation.error) : null,
+    reset,
+  };
 }

@@ -20,3 +20,12 @@ export function createCategoriesRouter(catalogService: CatalogService): Router {
 
   return router;
 }
+
+export function createSearchRouter(catalogService: CatalogService): Router {
+  const router = Router();
+  const controller = createCatalogController(catalogService);
+
+  router.get('/', controller.searchByTitle);
+
+  return router;
+}

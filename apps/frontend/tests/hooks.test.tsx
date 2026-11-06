@@ -7,7 +7,13 @@ import { useCategories } from '@/hooks/useCategories';
 import { useProductDetail } from '@/hooks/useProductDetail';
 import { useProducts } from '@/hooks/useProducts';
 import { useSubmitEnquiry } from '@/hooks/useSubmitEnquiry';
-import { makeProduct, testMeta, testProduct } from './test-utils';
+import {
+  createQueryWrapper,
+  makeProduct,
+  renderQueryHook,
+  testMeta,
+  testProduct,
+} from './test-utils';
 
 jest.mock('@/api/catalogue', () => ({
   listProducts: jest.fn(),
@@ -32,7 +38,7 @@ describe('useProducts', () => {
   it('loads products and metadata for the query', async () => {
     mockListProducts.mockResolvedValue({ data: [testProduct], meta: testMeta });
 
-    const { result } = renderHook(() => useProducts({ category: 'mens-clothing', limit: 8 }));
+    const { result } = renderQueryHook(() => useProducts({ category: 'mens-clothing', limit: 8 }));
 
     expect(result.current.isLoading).toBe(true);
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -49,7 +55,7 @@ describe('useProducts', () => {
   it('exposes fetch errors and clears stale data', async () => {
     mockListProducts.mockRejectedValue(new Error('Network down'));
 
-    const { result } = renderHook(() => useProducts());
+    const { result } = renderQueryHook(() => useProducts());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -62,7 +68,7 @@ describe('useProducts', () => {
   it('refetches on demand', async () => {
     mockListProducts.mockResolvedValue({ data: [testProduct], meta: testMeta });
 
-    const { result } = renderHook(() => useProducts());
+    const { result } = renderQueryHook(() => useProducts());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     act(() => result.current.refetch());
@@ -75,7 +81,7 @@ describe('useProductDetail', () => {
   it('loads a single product', async () => {
     mockGetProduct.mockResolvedValue(testProduct);
 
-    const { result } = renderHook(() => useProductDetail('1'));
+    const { result } = renderQueryHook(() => useProductDetail('1'));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -87,7 +93,7 @@ describe('useProductDetail', () => {
   it('flags a missing product', async () => {
     mockGetProduct.mockRejectedValue(new ApiError('No product found', 404, 'PRODUCT_NOT_FOUND'));
 
-    const { result } = renderHook(() => useProductDetail('999'));
+    const { result } = renderQueryHook(() => useProductDetail('999'));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -97,7 +103,7 @@ describe('useProductDetail', () => {
   });
 
   it('does not call the API without an id', async () => {
-    const { result } = renderHook(() => useProductDetail(undefined));
+    const { result } = renderQueryHook(() => useProductDetail(undefined));
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -107,14 +113,15 @@ describe('useProductDetail', () => {
 });
 
 describe('useCategories', () => {
+  const categories = [
+    { slug: 'jewelery', name: 'Jewelery', productCount: 4 },
+    { slug: 'mens-clothing', name: "Men's Clothing", productCount: 6 },
+  ];
+
   it('loads categories', async () => {
-    const categories = [
-      { slug: 'jewelery', name: 'Jewelery', productCount: 4 },
-      { slug: 'mens-clothing', name: "Men's Clothing", productCount: 6 },
-    ];
     mockListCategories.mockResolvedValue(categories);
 
-    const { result } = renderHook(() => useCategories());
+    const { result } = renderQueryHook(() => useCategories());
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
@@ -125,7 +132,7 @@ describe('useCategories', () => {
   it('exposes an error and supports retry', async () => {
     mockListCategories.mockRejectedValue(new Error('Upstream unavailable'));
 
-    const { result } = renderHook(() => useCategories());
+    const { result } = renderQueryHook(() => useCategories());
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     mockListCategories.mockResolvedValue([]);
@@ -133,6 +140,21 @@ describe('useCategories', () => {
 
     await waitFor(() => expect(result.current.isError).toBe(false));
     expect(mockListCategories).toHaveBeenCalledTimes(2);
+  });
+
+  it('reuses cached data when the hook mounts again', async () => {
+    mockListCategories.mockResolvedValue(categories);
+    const wrapper = createQueryWrapper();
+
+    const first = renderHook(() => useCategories(), { wrapper });
+    await waitFor(() => expect(first.result.current.isLoading).toBe(false));
+    first.unmount();
+
+    const second = renderHook(() => useCategories(), { wrapper });
+
+    expect(second.result.current.isLoading).toBe(false);
+    expect(second.result.current.data).toEqual(categories);
+    expect(mockListCategories).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -152,7 +174,7 @@ describe('useSubmitEnquiry', () => {
 
   it('tracks a successful submission', async () => {
     mockSubmitEnquiry.mockResolvedValue(receipt);
-    const { result } = renderHook(() => useSubmitEnquiry());
+    const { result } = renderQueryHook(() => useSubmitEnquiry());
 
     let returned: EnquiryReceipt | undefined;
     await act(async () => {
@@ -160,37 +182,37 @@ describe('useSubmitEnquiry', () => {
     });
 
     expect(returned).toEqual(receipt);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.isSubmitting).toBe(false);
-    expect(result.current.isSuccess).toBe(true);
     expect(result.current.receipt).toEqual(receipt);
     expect(mockSubmitEnquiry).toHaveBeenCalledWith(input);
   });
 
   it('records the error and rethrows for the caller', async () => {
     mockSubmitEnquiry.mockRejectedValue(new ApiError('Provider down', 502, 'UPSTREAM_UNAVAILABLE'));
-    const { result } = renderHook(() => useSubmitEnquiry());
+    const { result } = renderQueryHook(() => useSubmitEnquiry());
 
     await act(async () => {
       await expect(result.current.submit(input)).rejects.toThrow('Provider down');
     });
 
-    expect(result.current.error).toBeInstanceOf(ApiError);
+    await waitFor(() => expect(result.current.error).toBeInstanceOf(ApiError));
     expect(result.current.isSuccess).toBe(false);
     expect(result.current.isSubmitting).toBe(false);
   });
 
   it('resets its state', async () => {
     mockSubmitEnquiry.mockResolvedValue(receipt);
-    const { result } = renderHook(() => useSubmitEnquiry());
+    const { result } = renderQueryHook(() => useSubmitEnquiry());
 
     await act(async () => {
       await result.current.submit(input);
     });
-    expect(result.current.isSuccess).toBe(true);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     act(() => result.current.reset());
 
-    expect(result.current.isSuccess).toBe(false);
+    await waitFor(() => expect(result.current.isSuccess).toBe(false));
     expect(result.current.receipt).toBeNull();
     expect(result.current.error).toBeNull();
   });

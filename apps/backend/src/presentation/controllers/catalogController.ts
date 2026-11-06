@@ -8,6 +8,7 @@ export interface CatalogController {
   list: RequestHandler;
   detail: RequestHandler;
   categories: RequestHandler;
+  searchByTitle: RequestHandler;
 }
 
 export function createCatalogController(catalogService: CatalogService): CatalogController {
@@ -33,5 +34,14 @@ export function createCatalogController(catalogService: CatalogService): Catalog
     res.status(200).json({ data: categories });
   };
 
-  return { list, detail, categories };
+  const searchByTitle: RequestHandler = async (req, res) => {
+    const rawQuery = Array.isArray(req.query.search)
+      ? (req.query.search[0] ?? '').toString()
+      : (req.query.search ?? '').toString();
+
+    const result = await catalogService.searchProductsByTitle(rawQuery);
+    res.status(200).json({ data: result });
+  };
+
+  return { list, detail, categories, searchByTitle };
 }

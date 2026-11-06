@@ -6,7 +6,11 @@ import type { CatalogService } from '../business/services/CatalogService';
 import type { EnquiryService } from '../business/services/EnquiryService';
 import { createConsoleLogger } from '../data-access/logging/ConsoleLogger';
 import { createErrorHandler, notFoundHandler } from './middleware/errorHandler';
-import { createCatalogRouter, createCategoriesRouter } from './routes/catalogRoutes';
+import {
+  createCatalogRouter,
+  createCategoriesRouter,
+  createSearchRouter,
+} from './routes/catalogRoutes';
 import { createEnquiryRouter } from './routes/enquiryRoutes';
 
 export interface CreateAppOptions {
@@ -42,6 +46,7 @@ export function createApp(options: CreateAppOptions): Express {
 
   app.use('/api/products', createCatalogRouter(options.catalogService));
   app.use('/api/categories', createCategoriesRouter(options.catalogService));
+  app.use('/api/search', createSearchRouter(options.catalogService));
   app.use('/api/enquiries', createEnquiryRouter(options.enquiryService));
 
   app.use(notFoundHandler);

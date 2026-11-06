@@ -87,6 +87,15 @@ export class CatalogService {
     });
   }
 
+  async searchProductsByTitle(rawQuery: string): Promise<Product[]> {
+    const query = normalizeSearchTerm(rawQuery);
+    if (query.length === 0) {
+      return [];
+    }
+
+    return this.repository.searchProductsByTitle(query);
+  }
+
   private async resolveCategorySlug(input: string): Promise<string> {
     const categories = await this.repository.getCategories();
     const normalized = input.trim().toLowerCase();

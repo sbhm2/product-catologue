@@ -1,6 +1,7 @@
 import type { Product, ProductListMeta } from '@catalogue/contracts';
-import { render, type RenderResult } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderHook, render, type RenderResult } from '@testing-library/react';
+import type { ReactElement, ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
 export function makeProduct(overrides: Partial<Product> = {}): Product {
@@ -26,6 +27,38 @@ export const testMeta: ProductListMeta = {
   category: null,
   search: null,
 };
+
+/**
+ * Each test gets an isolated client: no retries (so failure tests resolve
+ * immediately) and an infinite cache lifetime (so unmounted hooks remain
+ * inspectable for cache assertions).
+ */
+export function createTestQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        gcTime: Infinity,
+        staleTime: Infinity,
+      },
+      mutations: {
+        retry: false,
+      },
+    },
+  });
+}
+
+export function createQueryWrapper() {
+  const client = createTestQueryClient();
+
+  return function QueryWrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
+}
+
+export function renderQueryHook<Result>(hook: () => Result) {
+  return renderHook(hook, { wrapper: createQueryWrapper() });
+}
 
 export function renderWithRouter(
   ui: ReactElement,

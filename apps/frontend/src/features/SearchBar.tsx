@@ -9,9 +9,6 @@ export interface SearchBarProps {
   initialValue?: string;
   /** Runs on form submission (Enter or the Search button). */
   onSearch: (query: string) => void;
-  /** Runs after the user stops typing. Enables instant search. */
-  onDebouncedChange?: (query: string) => void;
-  debounceMs?: number;
   placeholder?: string;
   autoFocus?: boolean;
   ariaLabel?: string;
@@ -22,8 +19,6 @@ export interface SearchBarProps {
 export function SearchBar({
   initialValue = '',
   onSearch,
-  onDebouncedChange,
-  debounceMs = 350,
   placeholder = 'Search the catalogue…',
   autoFocus = false,
   ariaLabel = 'Search products',
@@ -31,27 +26,19 @@ export function SearchBar({
   className,
 }: SearchBarProps) {
   const [value, setValue] = useState(initialValue);
-  const debouncedChange = useRef(onDebouncedChange);
-
-  useEffect(() => {
-    debouncedChange.current = onDebouncedChange;
-  }, [onDebouncedChange]);
 
   useEffect(() => {
     setValue(initialValue);
   }, [initialValue]);
 
-  useEffect(() => {
-    const callback = debouncedChange.current;
-    if (!callback || value.trim() === initialValue.trim()) return;
-
-    const timer = setTimeout(() => callback(value.trim()), debounceMs);
-    return () => clearTimeout(timer);
-  }, [value, debounceMs, initialValue]);
-
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSearch(value.trim());
+  };
+
+  const handleClear = () => {
+    setValue('');
+    onSearch('');
   };
 
   return (
@@ -67,12 +54,30 @@ export function SearchBar({
           value={value}
           autoFocus={autoFocus}
           placeholder={placeholder}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setValue(nextValue);
+            if (nextValue === '') {
+              onSearch('');
+            }
+          }}
           className={cn(
-            'pl-11',
+            'pl-11 pr-10',
             size === 'large' && 'h-14 rounded-2xl text-base shadow-md',
           )}
         />
+        {value && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Clear search"
+            className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2 rounded-full"
+            onClick={handleClear}
+          >
+            ×
+          </Button>
+        )}
       </div>
       <Button type="submit" size={size === 'large' ? 'lg' : 'md'}>
         Search

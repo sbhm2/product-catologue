@@ -155,6 +155,20 @@ export class FakeStoreAdapter implements IProductRepository {
     return this.getProducts({ search: query });
   }
 
+  async searchProductsByTitle(query: string): Promise<Product[]> {
+    const products = await this.fetchAllProducts();
+    const tokens = query.trim().toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+    if (tokens.length === 0) {
+      return products;
+    }
+
+    return products.filter((product) => {
+      const titleTokens = product.title.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+      return tokens.every((token) => titleTokens.includes(token));
+    });
+  }
+
   private async fetchAllProducts(): Promise<Product[]> {
     const body = await this.requestJson('/products');
     const parsed = fakeStoreProductListSchema.safeParse(body);
