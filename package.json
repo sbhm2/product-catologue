@@ -1,0 +1,26 @@
+{
+  "name": "product-catalogue",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Extensible product catalogue with a React frontend and hexagonal Node.js backend",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @catalogue/contracts && npm run build --workspace @catalogue/backend && npm run build --workspace @catalogue/frontend",
+    "build:contracts": "npm run build --workspace @catalogue/contracts",
+    "dev": "npm run build:contracts && concurrently -n backend,frontend -c blue,green \"npm run dev --workspace @catalogue/backend\" \"npm run dev --workspace @catalogue/frontend\"",
+    "test": "npm run test --workspace @catalogue/backend && npm run test --workspace @catalogue/frontend",
+    "test:backend": "npm run test --workspace @catalogue/backend",
+    "test:frontend": "npm run test --workspace @catalogue/frontend",
+    "typecheck": "npm run typecheck --workspace @catalogue/contracts && npm run typecheck --workspace @catalogue/backend && npm run typecheck --workspace @catalogue/frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
