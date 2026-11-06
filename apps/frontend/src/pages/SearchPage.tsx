@@ -1,18 +1,17 @@
 import { useSearchParams } from 'react-router-dom';
-import { EmptyState, ErrorState } from '@/components/Feedback';
+import { ErrorState } from '@/components/Feedback';
 import { ProductGrid } from '@/components/ProductGrid';
-import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/features/SearchBar';
 import { useProducts } from '@/hooks/useProducts';
 import { searchProductsByTitle } from '@/api/search';
 import { toError } from '@/hooks/errors';
 import { type Product } from '@catalogue/contracts';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const query = (searchParams.get('q') ?? '').trim();
-  const products = useProducts(query ? { search: query } : { limit: 24 });
+  const products = useProducts(query ? { limit: 24 } : { limit: 24 });
 
   const applyQuery = (nextQuery: string, replace = false) => {
     setSearchParams(nextQuery ? { q: nextQuery } : {}, { replace });
@@ -30,7 +29,7 @@ export function SearchPage() {
     };
   }, []);
 
-  useEffect(() => {
+  const runSearch = useCallback(async () => {
     if (!query) {
       setTitleMatches([]);
       setRelatedItems([]);
@@ -40,40 +39,40 @@ export function SearchPage() {
 
     let ignored = false;
 
-    const runSearch = async () => {
-      try {
-        const products = await searchProductsByTitle(query, 24);
-        if (ignored || !mountedRef.current) return;
+    try {
+      const results = await searchProductsByTitle(query, 24);
+      if (ignored || !mountedRef.current) return;
 
-        const queryLower = query.toLowerCase();
-        const exact: Product[] = [];
-        const related: Product[] = [];
+      const queryLower = query.toLowerCase();
+      const exact: Product[] = [];
+      const related: Product[] = [];
 
-        for (const product of products) {
-          if (product.title.toLowerCase().includes(queryLower)) {
-            exact.push(product);
-          } else {
-            related.push(product);
-          }
+      for (const product of results) {
+        if (product.title.toLowerCase().includes(queryLower)) {
+          exact.push(product);
+        } else {
+          related.push(product);
         }
-
-        if (mountedRef.current) {
-          setTitleMatches(exact);
-          setRelatedItems(related);
-          setSearchError(null);
-        }
-      } catch (error) {
-        if (ignored || !mountedRef.current) return;
-        setSearchError(toError(error));
       }
-    };
 
+      if (mountedRef.current) {
+        setTitleMatches(exact);
+        setRelatedItems(related);
+        setSearchError(null);
+      }
+    } catch (error) {
+      if (ignored || !mountedRef.current) return;
+      setSearchError(toError(error));
+    }
+  }, [query]);
+
+  useEffect(() => {
     runSearch();
 
     return () => {
-      ignored = true;
+      mountedRef.current = false;
     };
-  }, [query]);
+  }, [runSearch]);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 sm:py-14">
@@ -85,9 +84,7 @@ export function SearchPage() {
           {query ? `Results for “${query}”` : 'Browse the catalogue'}
         </h1>
         <p className="mt-3 text-sm text-muted-foreground" aria-live="polite">
-          {query && (products.isLoading || titleMatches.length === 0 && !searchError)
-            ? 'Searching the catalogue…'
-            : `${products.data.length} ${products.data.length === 1 ? 'product' : 'products'} found`}
+          `${products.data.length} ${products.data.length === 1 ? 'product' : 'products'} found`
         </p>
 
         <div className="mt-6">
@@ -112,16 +109,6 @@ export function SearchPage() {
           <ErrorState
             title="Search unavailable"
             message={searchError.message ?? 'We could not run that search. Please try again.'}
-          />
-        ) : titleMatches.length === 0 && relatedItems.length === 0 && !products.isLoading ? (
-          <EmptyState
-            title="No products matched your search"
-            message="Try a broader term, or browse the catalogue by category from the home page."
-            action={
-              <Button variant="outline" className="mt-2" onClick={() => applyQuery('')}>
-                Clear search
-              </Button>
-            }
           />
         ) : (
           <>

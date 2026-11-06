@@ -1,5 +1,5 @@
 import { Search } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -36,10 +36,10 @@ export function SearchBar({
     onSearch(value.trim());
   };
 
-  const handleClear = () => {
-    setValue('');
-    onSearch('');
-  };
+  // const handleClear = () => {
+  //   setValue('');
+  //   onSearch('');
+  // };
 
   return (
     <form role="search" onSubmit={handleSubmit} className={cn('flex w-full items-center gap-2', className)}>
@@ -66,7 +66,7 @@ export function SearchBar({
             size === 'large' && 'h-14 rounded-2xl text-base shadow-md',
           )}
         />
-        {value && (
+        {/* {value && (
           <Button
             type="button"
             variant="ghost"
@@ -77,7 +77,7 @@ export function SearchBar({
           >
             ×
           </Button>
-        )}
+        )} */}
       </div>
       <Button type="submit" size={size === 'large' ? 'lg' : 'md'}>
         Search

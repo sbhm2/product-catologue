@@ -21,8 +21,10 @@ export async function searchProductsByTitle(
   if (limit && limit > 0) searchParams.set('limit', String(limit));
 
   const queryString = searchParams.toString();
-  return request(`/api/products${queryString ? `?${queryString}` : ''}`, {
+  const response = await request(`/api/search${queryString ? `?${queryString}` : ''}`, {
     schema: productListEnvelopeSchema,
     signal,
-  }).then((response) => response.data);
+  });
+
+  return response.data;
 }
