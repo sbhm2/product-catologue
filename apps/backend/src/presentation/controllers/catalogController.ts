@@ -40,7 +40,7 @@ export function createCatalogController(catalogService: CatalogService): Catalog
       : (req.query.search ?? '').toString();
 
     const result = await catalogService.searchProductsByTitle(rawQuery);
-    res.status(200).json({ data: result, meta: { total: result.length, category: null, search: rawQuery } });
+    res.status(200).json({ data: result });
   };
 
   return { list, detail, categories, searchByTitle };

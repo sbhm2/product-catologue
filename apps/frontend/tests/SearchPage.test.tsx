@@ -7,9 +7,9 @@ import { MemoryRouter } from 'react-router-dom';
 import type { Product } from '@catalogue/contracts';
 
 jest.mock('@/api/catalogue', () => ({
-  listProducts: jest.fn(() => Promise.resolve({ data: [], meta: { total: 0, category: null, search: null } })),
+  listProducts: jest.fn(),
   getProduct: jest.fn(),
-  listCategories: jest.fn(() => Promise.resolve({ data: [], meta: { total: 0, category: null, search: null } })),
+  listCategories: jest.fn(),
 }));
 
 jest.mock('@/api/enquiries', () => ({
@@ -97,7 +97,10 @@ describe('SearchPage', () => {
     const titleMatch = makeSearchProduct({ id: '1', title: 'Fjallraven Backpack' });
     const relatedItem = makeSearchProduct({ id: '2', title: 'Solid Gold Ring' });
 
-    mockedSearchProductsByTitle.mockResolvedValue([titleMatch, relatedItem]);
+    mockedSearchProductsByTitle.mockResolvedValue({
+      data: [titleMatch, relatedItem],
+      meta: { total: 2, category: null, search: 'backpack' },
+    });
 
     renderSearchPage('backpack');
 
