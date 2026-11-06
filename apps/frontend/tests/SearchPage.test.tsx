@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SearchPage } from '@/pages/SearchPage';
 import { createTestQueryClient, makeProduct } from './test-utils';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import type { Product } from '@catalogue/contracts';
 
@@ -93,14 +93,10 @@ describe('SearchPage', () => {
   });
 
   it('shows title matches and related items headings after search', async () => {
-    const user = userEvent.setup();
     const titleMatch = makeSearchProduct({ id: '1', title: 'Fjallraven Backpack' });
     const relatedItem = makeSearchProduct({ id: '2', title: 'Solid Gold Ring' });
 
-    mockedSearchProductsByTitle.mockResolvedValue({
-      data: [titleMatch, relatedItem],
-      meta: { total: 2, category: null, search: 'backpack' },
-    });
+    mockedSearchProductsByTitle.mockResolvedValue([titleMatch, relatedItem]);
 
     renderSearchPage('backpack');
 
